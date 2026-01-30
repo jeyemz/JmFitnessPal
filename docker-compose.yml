@@ -1,0 +1,70 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: jmfitnesspal-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword123}
+      MYSQL_DATABASE: jmfitnesspal
+      MYSQL_USER: ${MYSQL_USER:-jmfitness_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jmfitness_pass123}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks:
+      - jmfitnesspal-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Python Flask Backend API
+  backend:
+    build: ./backend
+    container_name: jmfitnesspal-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-jmfitness_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jmfitness_pass123}
+      MYSQL_DATABASE: jmfitnesspal
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      FLASK_DEBUG: "true"
+    ports:
+      - "5000:5000"
+    networks:
+      - jmfitnesspal-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # Optional: phpMyAdmin for database management UI
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: jmfitnesspal-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword123}
+    ports:
+      - "8080:80"
+    networks:
+      - jmfitnesspal-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  jmfitnesspal-network:
+    driver: bridge
