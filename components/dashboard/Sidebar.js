@@ -11,7 +11,7 @@ const Sidebar = ({ onNavigate, currentPage = 'dashboard', onLogout, user }) => {
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    React.createElement("div", { className: "w-64 bg-white shadow-md flex flex-col justify-between py-6 px-4 hidden lg:flex relative z-10" },
+    React.createElement("div", { className: "w-64 bg-white shadow-md flex flex-col justify-between py-6 px-4 relative z-10 min-h-screen" },
       /* Top Section: Logo and Navigation */
       React.createElement("div", null,
         /* Logo */

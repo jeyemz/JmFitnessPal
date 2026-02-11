@@ -4,11 +4,10 @@ import CalorieProgressCard from './CalorieProgressCard.js';
 import MacroProgressCard from './MacroProgressCard.js';
 import MealLog from './MealLog.js';
 import FoodScannerCard from './FoodScannerCard.js';
-import CalorieTrendsChart from './CalorieTrendsChart.js';
-import DashboardTopBar from './DashboardTopBar.js'; // Import the new DashboardTopBar
+import DashboardTopBar from './DashboardTopBar.js';
 import { foodLogAPI } from '../../services/api.js';
 
-const MainDashboardContent = ({ onNavigate, user }) => {
+const MainDashboardContent = ({ onNavigate, user, onLogout }) => {
   const today = new Date();
   // Fix: Used literal types for Intl.DateTimeFormatOptions properties
   const options = { weekday: 'long', month: 'long', day: 'numeric' };
@@ -29,27 +28,48 @@ const MainDashboardContent = ({ onNavigate, user }) => {
     fat: 0
   });
 
-  // Fetch daily summary on mount
+  // State for today's meal logs
+  const [todayMeals, setTodayMeals] = useState([]);
+
+  // Fetch daily summary and today's logs on mount
   useEffect(() => {
-    const fetchDailySummary = async () => {
+    const fetchData = async () => {
+      if (!user) return;
       try {
-        const response = await foodLogAPI.getDailySummary();
-        if (response.summary) {
+        const [summaryRes, logsRes] = await Promise.all([
+          foodLogAPI.getDailySummary(),
+          foodLogAPI.getTodayLogs()
+        ]);
+        if (summaryRes.summary) {
           setDailySummary({
-            intake: response.summary.intake || 0,
-            protein: response.summary.protein?.current || 0,
-            carbs: response.summary.carbs?.current || 0,
-            fat: response.summary.fat?.current || 0
+            intake: summaryRes.summary.intake || 0,
+            protein: summaryRes.summary.protein?.current || 0,
+            carbs: summaryRes.summary.carbs?.current || 0,
+            fat: summaryRes.summary.fat?.current || 0
           });
         }
+        if (logsRes.logs && logsRes.logs.length > 0) {
+          setTodayMeals(logsRes.logs.map((log) => ({
+            id: log.id,
+            name: log.foodName,
+            time: log.mealType,
+            imageUrl: log.imageUrl,
+            calories: Math.round(log.calories || 0),
+            protein: Math.round(log.protein || 0),
+            carbs: Math.round(log.carbs || 0),
+            fat: Math.round(log.fat || 0),
+            isVerified: false,
+            entryType: log.mealType
+          })));
+        } else {
+          setTodayMeals([]);
+        }
       } catch (error) {
-        console.log('Could not fetch daily summary, using defaults');
+        console.log('Could not fetch dashboard data:', error);
       }
     };
-    
-    if (user) {
-      fetchDailySummary();
-    }
+
+    fetchData();
   }, [user]);
 
   // Build summary object with user's goals
@@ -62,9 +82,9 @@ const MainDashboardContent = ({ onNavigate, user }) => {
   };
 
   return (
-    React.createElement("div", { className: "flex-1 p-6 overflow-auto" },
+    React.createElement("div", { className: "flex-1 p-4 sm:p-6 overflow-auto" },
       /* Dashboard Header */
-      React.createElement(DashboardTopBar, { title: "Daily Dashboard", subtitle: formattedDate }),
+      React.createElement(DashboardTopBar, { title: "Daily Dashboard", subtitle: formattedDate, showSearchBar: false, user: user, onLogout: onLogout }),
 
       /* Daily Summary Grid */
       React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6" },
@@ -97,12 +117,9 @@ const MainDashboardContent = ({ onNavigate, user }) => {
 
       /* Meals and AI Scanner */
       React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6" },
-        React.createElement(MealLog, { onNavigate: onNavigate }),
+        React.createElement(MealLog, { onNavigate: onNavigate, meals: todayMeals }),
         React.createElement(FoodScannerCard, null)
-      ),
-
-      /* 7-Day Calorie Trends */
-      React.createElement(CalorieTrendsChart, null)
+      )
     )
   );
 };

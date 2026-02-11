@@ -1,105 +1,365 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminSidebar from '../components/admin/AdminSidebar.js';
 import AdminHeader from '../components/admin/AdminHeader.js';
-import MetricCard from '../components/admin/MetricCard.js';
-import SystemHealthCard from '../components/admin/SystemHealthCard.js';
-import GrowthMetricsCard from '../components/admin/GrowthMetricsCard.js';
-import SupportQueueCard from '../components/admin/SupportQueueCard.js';
-import RecentActivityCard from '../components/admin/RecentActivityCard.js';
-import ApiLatencyCard from '../components/admin/ApiLatencyCard.js';
+import { adminAPI } from '../services/api.js';
+import { ADMIN_NAV_LINKS } from '../constants.js';
 
 const AdminDashboardPage = ({ onNavigate, currentPage, onLogout, user }) => {
-  const emptyMetrics = {
-    totalActiveTenants: { label: 'Total Active Tenants', value: 0, subLabel: null, change: null, status: null },
-    totalEcosystemUsers: { label: 'Total Ecosystem Users', value: 0, subText: 'No data', icon: null },
-    systemHealth: { label: 'System Health', value: 0, statusText: 'No data' }
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeToday: 0,
+    mealsLogged: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+        const [usersResponse, activityResponse] = await Promise.all([
+          adminAPI.getAllUsers(),
+          adminAPI.getRecentActivity().catch(() => ({ activity: [] }))
+        ]);
+
+        const users = usersResponse.users || [];
+        const activityList = activityResponse.activity || [];
+
+        const today = new Date().toDateString();
+        const activeToday = users.filter((u) => {
+          if (!u.lastLogin) return false;
+          return new Date(u.lastLogin).toDateString() === today;
+        }).length;
+
+        setStats({
+          totalUsers: users.length,
+          activeToday,
+          mealsLogged: 0
+        });
+
+        const activity = activityList.slice(0, 20).map((a) => ({
+          id: a.id,
+          type: a.type,
+          user: a.user || a.email || `User #${a.userId}`,
+          action:
+            a.action ||
+            (a.type === 'login'
+              ? 'logged in'
+              : a.type === 'logout'
+              ? 'logged out'
+              : 'signed up'),
+          time: a.time ? formatTimeAgo(a.time) : ''
+        }));
+
+        setRecentActivity(activity);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const formatTimeAgo = (dateStr) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
   };
-  const emptyGrowthMetrics = { mealLoggingTrend: null, userRetention: null };
-  const emptySupport = { openTickets: 0 };
-  const emptyActivity = [];
-  const emptyLatency = { value: 0, status: 'Unknown' };
 
-  const handleAddTenant = () => {
-    alert('Add New Tenant functionality not implemented in demo.');
-    // In a real app, this would navigate to a tenant creation form
+  const handleNavigate = (page) => {
+    onNavigate(page);
   };
 
-  const handleOpenInbox = () => {
-    alert('Open Support Inbox functionality not implemented in demo.');
-    // In a real app, this would navigate to the support ticket management page
-  };
-
-  const handleViewAllActivity = () => {
-    alert('View All Recent Activity functionality not implemented in demo.');
-    // In a real app, this would navigate to a detailed activity log page
-  };
-
-  return (
-    React.createElement("div", { className: "flex min-h-screen bg-gray-100" },
-      React.createElement(AdminSidebar, { onNavigate: onNavigate, currentPage: currentPage, onLogout: onLogout, user: user }),
-      React.createElement("div", { className: "flex-1 p-6 overflow-auto" },
-        React.createElement(AdminHeader, {
-          title: "Admin Overview",
-          subtitle: "Monitor system performance and tenant health.",
-          primaryButtonText: "Add New Tenant", // Added primaryButtonText
-          onPrimaryButtonClick: handleAddTenant
-        }),
-
-        /* Admin Overview Metrics Grid */
-        React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6" },
-          React.createElement(MetricCard, {
-            title: emptyMetrics.totalActiveTenants.label,
-            value: emptyMetrics.totalActiveTenants.value,
-            subLabel: emptyMetrics.totalActiveTenants.subLabel,
-            change: emptyMetrics.totalActiveTenants.change,
-            status: emptyMetrics.totalActiveTenants.status
-          }),
-          React.createElement(MetricCard, {
-            title: emptyMetrics.totalEcosystemUsers.label,
-            value: emptyMetrics.totalEcosystemUsers.value,
-            subText: emptyMetrics.totalEcosystemUsers.subText,
-            icon: emptyMetrics.totalEcosystemUsers.icon
-          }),
-          React.createElement(SystemHealthCard, {
-            title: emptyMetrics.systemHealth.label,
-            value: emptyMetrics.systemHealth.value,
-            statusText: emptyMetrics.systemHealth.statusText
-          })
+  const metricsGrid = React.createElement(
+    'div',
+    { className: 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-6' },
+    // Total Users
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-xl shadow-sm p-6 border border-gray-100' },
+      React.createElement(
+        'div',
+        { className: 'flex items-center justify-between' },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'p',
+            { className: 'text-sm text-gray-500' },
+            'Total Users'
+          ),
+          React.createElement(
+            'p',
+            { className: 'text-3xl font-bold text-gray-900 mt-1' },
+            stats.totalUsers
+          )
         ),
-
-        /* Growth Metrics and Recent Activity */
-        React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6" },
-          React.createElement("div", { className: "flex flex-col space-y-6" },
-            React.createElement(GrowthMetricsCard, {
-              mealLoggingData: emptyGrowthMetrics.mealLoggingTrend,
-              userRetentionData: emptyGrowthMetrics.userRetention
-            }),
-            React.createElement(SupportQueueCard, {
-              openTickets: emptySupport.openTickets,
-              onOpenInbox: handleOpenInbox
+        React.createElement(
+          'div',
+          { className: 'p-3 bg-blue-100 rounded-lg' },
+          React.createElement(
+            'svg',
+            {
+              xmlns: 'http://www.w3.org/2000/svg',
+              fill: 'none',
+              viewBox: '0 0 24 24',
+              strokeWidth: 1.5,
+              stroke: 'currentColor',
+              className: 'w-6 h-6 text-blue-600'
+            },
+            React.createElement('path', {
+              strokeLinecap: 'round',
+              strokeLinejoin: 'round',
+              d: 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'
             })
-          ),
-          React.createElement(RecentActivityCard, {
-            activityData: emptyActivity,
-            onViewAll: handleViewAllActivity
-          })
-        ),
-
-        /* Pro-tip and API Latency */
-        React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-6" },
-          React.createElement("div", { className: "bg-blue-50 rounded-xl shadow-sm p-4 border border-blue-200 flex items-start space-x-3 text-blue-800" },
-            React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 flex-shrink-0 mt-0.5" },
-              React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.02M10.5 18.75H9a2.25 2.25 0 00-2.25 2.25V21h4.5v-2.25A2.25 2.25 0 0010.5 18.75zm6.75-10.5H18a2.25 2.25 0 012.25 2.25V21h-4.5v-2.25m-1.5 0a.75.75 0 00-1.5 0V21h3v-2.25z" })
-            ),
-            React.createElement("p", { className: "text-sm" },
-              React.createElement("strong", { className: "font-semibold" }, "Tip:"), " Connect your data source to start seeing system insights."
-            )
-          ),
-          React.createElement(ApiLatencyCard, {
-            value: emptyLatency.value,
-            status: emptyLatency.status
-          })
+          )
         )
+      )
+    ),
+    // Active Today
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-xl shadow-sm p-6 border border-gray-100' },
+      React.createElement(
+        'div',
+        { className: 'flex items-center justify-between' },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'p',
+            { className: 'text-sm text-gray-500' },
+            'Active Today'
+          ),
+          React.createElement(
+            'p',
+            { className: 'text-3xl font-bold text-green-600 mt-1' },
+            stats.activeToday
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'p-3 bg-green-100 rounded-lg' },
+          React.createElement(
+            'svg',
+            {
+              xmlns: 'http://www.w3.org/2000/svg',
+              fill: 'none',
+              viewBox: '0 0 24 24',
+              strokeWidth: 1.5,
+              stroke: 'currentColor',
+              className: 'w-6 h-6 text-green-600'
+            },
+            React.createElement('path', {
+              strokeLinecap: 'round',
+              strokeLinejoin: 'round',
+              d: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'
+            })
+          )
+        )
+      )
+    ),
+    // System Status
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-xl shadow-sm p-6 border border-gray-100' },
+      React.createElement(
+        'div',
+        { className: 'flex items-center justify-between' },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'p',
+            { className: 'text-sm text-gray-500' },
+            'System Status'
+          ),
+          React.createElement(
+            'p',
+            { className: 'text-xl font-bold text-green-600 mt-1' },
+            'All Systems Operational'
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'p-3 bg-green-100 rounded-lg' },
+          React.createElement(
+            'svg',
+            {
+              xmlns: 'http://www.w3.org/2000/svg',
+              fill: 'none',
+              viewBox: '0 0 24 24',
+              strokeWidth: 1.5,
+              stroke: 'currentColor',
+              className: 'w-6 h-6 text-green-600'
+            },
+            React.createElement('path', {
+              strokeLinecap: 'round',
+              strokeLinejoin: 'round',
+              d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+            })
+          )
+        )
+      )
+    )
+  );
+
+  const recentActivitySection = React.createElement(
+    'div',
+    { className: 'bg-white rounded-xl shadow-sm p-6 border border-gray-100' },
+    React.createElement(
+      'h2',
+      { className: 'text-lg font-bold text-gray-900 mb-4' },
+      'Recent Activity'
+    ),
+    recentActivity.length > 0
+      ? React.createElement(
+          'div',
+          { className: 'space-y-4' },
+          recentActivity.map((activity) =>
+            React.createElement(
+              'div',
+              {
+                key: activity.id,
+                className:
+                  'flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0'
+              },
+              React.createElement(
+                'div',
+                { className: 'flex items-center space-x-3' },
+                React.createElement(
+                  'div',
+                  { className: 'p-2 bg-blue-100 rounded-full' },
+                  React.createElement(
+                    'svg',
+                    {
+                      xmlns: 'http://www.w3.org/2000/svg',
+                      fill: 'none',
+                      viewBox: '0 0 24 24',
+                      strokeWidth: 1.5,
+                      stroke: 'currentColor',
+                      className: 'w-4 h-4 text-blue-600'
+                    },
+                    React.createElement('path', {
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      d: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'
+                    })
+                  )
+                ),
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement(
+                    'p',
+                    { className: 'text-sm font-medium text-gray-900' },
+                    activity.user
+                  ),
+                  React.createElement(
+                    'p',
+                    { className: 'text-xs text-gray-500' },
+                    activity.action
+                  )
+                )
+              ),
+              React.createElement(
+                'span',
+                { className: 'text-xs text-gray-400' },
+                activity.time
+              )
+            )
+          )
+        )
+      : React.createElement(
+          'p',
+          { className: 'text-gray-500 text-center py-8' },
+          'No recent activity'
+        )
+  );
+
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement(
+      'div',
+      { className: 'flex min-h-screen bg-gray-100' },
+      React.createElement(
+        'div',
+        { className: 'hidden lg:block' },
+        React.createElement(AdminSidebar, {
+          onNavigate: handleNavigate,
+          currentPage,
+          onLogout,
+          user
+        })
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex-1 p-6 pb-16 lg:pb-6 overflow-auto' },
+        React.createElement(AdminHeader, {
+          title: 'Admin Dashboard',
+          subtitle: "Welcome back! Here's what's happening.",
+          user,
+          onLogout
+        }),
+        isLoading
+          ? React.createElement(
+              'div',
+              { className: 'flex justify-center items-center py-12' },
+              React.createElement('div', {
+                className:
+                  'animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500'
+              })
+            )
+          : React.createElement(
+              React.Fragment,
+              null,
+              metricsGrid,
+              recentActivitySection
+            )
+      )
+    ),
+    React.createElement(
+      'nav',
+      {
+        className:
+          'lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-inner'
+      },
+      React.createElement(
+        'div',
+        { className: 'flex justify-around' },
+        ADMIN_NAV_LINKS.map(function (link) {
+          return React.createElement(
+            'button',
+            {
+              key: link.name,
+              type: 'button',
+              onClick: function () {
+                handleNavigate(link.href);
+              },
+              className:
+                'flex flex-col items-center justify-center flex-1 py-2 text-xs ' +
+                (currentPage === link.href
+                  ? 'text-blue-600 font-semibold'
+                  : 'text-gray-500')
+            },
+            React.createElement('span', { className: 'mb-0.5' }, link.icon),
+            React.createElement(
+              'span',
+              { className: 'leading-tight' },
+              link.name
+            )
+          );
+        })
       )
     )
   );

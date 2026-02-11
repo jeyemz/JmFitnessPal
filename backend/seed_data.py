@@ -35,9 +35,9 @@ def create_admin_account():
         
         # Create admin user (role_id 1 = admin)
         cursor.execute(
-            """INSERT INTO users (email, password_hash, first_name, last_name, role_id, is_active, is_verified)
-               VALUES (%s, %s, %s, %s, 1, TRUE, TRUE)""",
-            ('randomexg@gmail.com', password_hash, 'Admin', 'User')
+            """INSERT INTO users (email, password_hash, first_name, last_name, nickname, role_id, is_active, is_verified)
+               VALUES (%s, %s, %s, %s, %s, 1, TRUE, TRUE)""",
+            ('randomexg@gmail.com', password_hash, 'Admin', 'User', 'Admin')
         )
         conn.commit()
         admin_id = cursor.lastrowid

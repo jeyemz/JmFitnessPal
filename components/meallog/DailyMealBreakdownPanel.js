@@ -3,13 +3,18 @@ import MealCategorySection from './MealCategorySection.js';
 import Button from '../Button.js';
 // Removed import of MealCategoryData as it's a TypeScript type
 
-const DailyMealBreakdownPanel = ({ mealBreakdown }) => {
+const DailyMealBreakdownPanel = ({ mealBreakdown, onDeleteLog, onUpdateLog, canEdit }) => {
   return (
     React.createElement("div", { className: "bg-white rounded-xl shadow-sm p-6 border border-gray-100" },
       mealBreakdown.length > 0 ? (
         mealBreakdown.map((category) => (
-          React.createElement(React.Fragment, { key: category.id },
-            React.createElement(MealCategorySection, { category: category }),
+          React.createElement(React.Fragment, { key: category.id || category.name },
+            React.createElement(MealCategorySection, {
+              category: category,
+              onDeleteLog: onDeleteLog,
+              onUpdateLog: onUpdateLog,
+              canEdit: canEdit
+            }),
             category.id === 'm3' && category.items.length === 0 && ( // Assuming 'm3' is Dinner
               React.createElement("div", { className: "flex justify-center mt-6 mb-4" },
                 React.createElement(Button, { variant: "primary", className: "text-sm py-3 px-6", onClick: () => console.log('Log Dinner clicked from Meal Breakdown') },

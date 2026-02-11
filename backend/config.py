@@ -14,14 +14,23 @@ class Config:
     
     # JWT
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-super-secret-jwt-key-change-in-production')
-    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 86400))  # 24 hours default
     
     # Flask
     DEBUG = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
     
-    # API Ninjas
-    API_NINJAS_KEY = os.getenv('API_NINJAS_KEY', '')
-    API_NINJAS_BASE_URL = os.getenv('API_NINJAS_BASE_URL', 'https://api.api-ninjas.com/v1')
+    # USDA FoodData Central API
+    # Get your free API key at: https://fdc.nal.usda.gov/api-key-signup.html
+    USDA_FDC_API_KEY = os.getenv('USDA_FDC_API_KEY', '')
+    USDA_FDC_BASE_URL = os.getenv('USDA_FDC_BASE_URL', 'https://api.nal.usda.gov/fdc/v1')
     
     # Cache settings (in seconds)
     API_CACHE_TTL = int(os.getenv('API_CACHE_TTL', 3600))  # 1 hour cache for API results
+    
+    # Edamam Vision API (Food Image Recognition) - optional, replaced by LogMeal
+    EDAMAM_APP_ID = os.getenv('EDAMAM_APP_ID', '')
+    EDAMAM_APP_KEY = os.getenv('EDAMAM_APP_KEY', '')
+
+    # LogMeal Food AI (Food Image Recognition)
+    # Image scan requires an API User token (not API Company). Get it at https://www.logmeal.com/api/users
+    LOGMEAL_API_TOKEN = os.getenv('LOGMEAL_API_TOKEN', '')

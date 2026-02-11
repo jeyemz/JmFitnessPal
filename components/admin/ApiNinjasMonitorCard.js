@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminNutritionAPI } from '../../services/api.js';
 
+// USDA FoodData Central Monitor Card (formerly ApiNinjasMonitorCard)
 const ApiNinjasMonitorCard = () => {
   const [cacheStats, setCacheStats] = useState(null);
   const [apiFoods, setApiFoods] = useState([]);
@@ -25,7 +26,7 @@ const ApiNinjasMonitorCard = () => {
       setCacheStats(statsResponse.cacheStats);
       setApiFoods(foodsResponse.foods || []);
     } catch (error) {
-      console.error('Failed to fetch API Ninjas data:', error);
+      console.error('Failed to fetch USDA FDC data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +79,7 @@ const ApiNinjasMonitorCard = () => {
       /* Header */
       React.createElement("div", { className: "flex justify-between items-center mb-6" },
         React.createElement("div", null,
-          React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "API Ninjas Integration"),
+          React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "USDA FoodData Central"),
           React.createElement("p", { className: "text-sm text-gray-500" }, "Monitor nutritional data API")
         ),
         React.createElement("div", { className: "flex items-center space-x-2" },
@@ -187,7 +188,7 @@ const ApiNinjasMonitorCard = () => {
           )
         ) : (
           React.createElement("p", { className: "text-sm text-gray-500 text-center py-4" }, 
-            "No foods have been saved from API Ninjas yet."
+            "No foods have been saved from USDA FDC yet."
           )
         )
       )

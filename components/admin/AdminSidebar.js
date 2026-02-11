@@ -10,9 +10,9 @@ const AdminSidebar = ({ onNavigate, currentPage = 'admin-dashboard', onLogout, u
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    React.createElement("div", { className: "w-64 bg-white shadow-md flex flex-col justify-between py-6 px-4 relative z-10 min-h-screen" },
+    React.createElement("div", { className: "w-64 bg-white shadow-md flex flex-col py-6 px-4 relative z-10 min-h-screen sticky top-0 h-screen" },
       /* Top Section: Logo and Navigation */
-      React.createElement("div", null,
+      React.createElement("div", { className: "flex-1 min-h-0 overflow-y-auto" },
         /* Logo */
         React.createElement("div", { className: "flex items-center mb-10 pl-2" },
           React.createElement("svg", {
@@ -52,7 +52,7 @@ const AdminSidebar = ({ onNavigate, currentPage = 'admin-dashboard', onLogout, u
         )
       ),
 
-      React.createElement("div", { className: "mt-auto border-t border-gray-200 pt-6 px-2" },
+      React.createElement("div", { className: "flex-shrink-0 border-t border-gray-200 pt-6 px-2 sticky bottom-0 bg-white" },
         React.createElement("div", { className: "flex items-center space-x-3" },
           avatarUrl ? (
             React.createElement("img", {

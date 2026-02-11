@@ -7,12 +7,15 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
   const [step, setStep] = useState(0);
   const [preferredName, setPreferredName] = useState('');
   const [goals, setGoals] = useState([]);
-  const [barriers, setBarriers] = useState([]);
   const [activityLevel, setActivityLevel] = useState('');
+  const [gender, setGender] = useState('');
+  const [ageYears, setAgeYears] = useState('');
   const [heightFeet, setHeightFeet] = useState('');
   const [heightInches, setHeightInches] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [goalWeight, setGoalWeight] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +25,7 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
   const steps = [
     { id: 'welcome', title: 'Welcome', subtitle: "Let's get to know you." },
     { id: 'goals', title: 'Goals', subtitle: 'Pick up to three goals.' },
-    { id: 'habits', title: 'Habits', subtitle: 'Tell us about barriers and activity.' },
+    { id: 'habits', title: 'Activity', subtitle: 'How active are you?' },
     { id: 'stats', title: 'You', subtitle: 'Add your height and weight.' },
     { id: 'account', title: 'Account', subtitle: 'Create your login details.' },
     { id: 'summary', title: 'Account Created', subtitle: 'Your custom plan is ready.' },
@@ -33,16 +36,6 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
     'Maintain weight',
     'Gain weight',
     'Gain muscle',
-    'Modify my diet',
-    'Plan meals',
-    'Manage stress',
-  ];
-
-  const barrierOptions = [
-    'Lack of time',
-    'The regimen was hard to follow',
-    'Healthy diets lack variety',
-    'Food cravings',
   ];
 
   const activityOptions = [
@@ -57,9 +50,9 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
     if (step === 0) return preferredName.trim().length > 0;
     if (step === 1) return goals.length > 0;
     if (step === 2) return activityLevel.length > 0;
-    if (step === 3) return heightFeet && heightInches && currentWeight && goalWeight;
+    if (step === 3) return heightFeet && heightInches && currentWeight && goalWeight && gender && ageYears && !isNaN(parseInt(ageYears, 10));
     if (step === 4) {
-      return email.trim().length > 0 && password.trim().length > 0 && confirmPassword.trim().length > 0 && password === confirmPassword;
+      return firstName.trim().length > 0 && lastName.trim().length > 0 && email.trim().length > 0 && password.trim().length > 0 && confirmPassword.trim().length > 0 && password === confirmPassword;
     }
     if (step === 5) return true;
     return false;
@@ -90,22 +83,34 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
       if (step === 4 && canProceed()) {
         setIsSubmitting(true);
         try {
+          // Convert height feet+inches to cm
+          const feet = parseFloat(heightFeet) || 0;
+          const inches = parseFloat(heightInches) || 0;
+          const heightCm = Math.round((feet * 30.48) + (inches * 2.54)) || null;
+          const weightKg = parseFloat(currentWeight) || null;
+          const gw = parseFloat(goalWeight) || weightKg;
           const response = await authAPI.register({
             email: email,
             password: password,
-            firstName: preferredName,
-            lastName: preferredName, // Using preferredName as last name for simplicity
-            nickname: preferredName
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            nickname: preferredName.trim() || firstName.trim(),
+            heightCm: heightCm,
+            weightKg: weightKg,
+            ageYears: parseInt(ageYears, 10) || null,
+            gender: gender || null,
+            goalWeightKg: gw,
+            goalType: goals[0] || 'Maintain weight',
+            activityLevel: activityLevel || null
           });
-          
-          // Store user data with calculated goals
+
           const userData = {
             ...response.user,
-            goals: {
+            goals: response.user?.goals || {
               dailyCalorieGoal: dailyCalories,
-              proteinGoal: Math.round(dailyCalories * 0.3 / 4), // 30% from protein
-              carbsGoal: Math.round(dailyCalories * 0.4 / 4), // 40% from carbs
-              fatGoal: Math.round(dailyCalories * 0.3 / 9) // 30% from fat
+              proteinGoal: Math.round(dailyCalories * 0.3 / 4),
+              carbsGoal: Math.round(dailyCalories * 0.4 / 4),
+              fatGoal: Math.round(dailyCalories * 0.3 / 9)
             }
           };
           
@@ -125,47 +130,46 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
       return;
     }
     
-    // On last step, complete signup
+    // On last step, complete signup (user + goals already in localStorage from register)
     const userData = authAPI.getStoredUser();
     if (userData) {
-      userData.goals = {
-        dailyCalorieGoal: dailyCalories,
-        proteinGoal: Math.round(dailyCalories * 0.3 / 4),
-        carbsGoal: Math.round(dailyCalories * 0.4 / 4),
-        fatGoal: Math.round(dailyCalories * 0.3 / 9)
-      };
+      if (!userData.goals) {
+        userData.goals = {
+          dailyCalorieGoal: dailyCalories,
+          proteinGoal: Math.round(dailyCalories * 0.3 / 4),
+          carbsGoal: Math.round(dailyCalories * 0.4 / 4),
+          fatGoal: Math.round(dailyCalories * 0.3 / 9)
+        };
+      }
       onSignUpSuccess(userData);
     } else {
       onSignUpSuccess({ nickname: preferredName });
     }
   };
 
+  // BMR-based calorie goal (Mifflin-St Jeor) - mirrors backend for preview
   const calculateDailyCalories = () => {
-    const weightValue = parseFloat(currentWeight);
-    if (!weightValue) {
-      return 1800;
-    }
-
-    const activityMultipliers = {
-      'not-active': 11,
-      'lightly-active': 12,
-      'active': 13,
-      'very-active': 14,
-    };
-
-    const base = weightValue * (activityMultipliers[activityLevel] || 12);
-    let adjustment = 0;
-
-    if (goals.includes('Lose weight')) adjustment = -300;
-    if (goals.includes('Gain weight') || goals.includes('Gain muscle')) adjustment = 250;
-
-    return Math.max(1200, Math.round(base + adjustment));
+    const w = parseFloat(currentWeight) || 70;
+    const feet = parseFloat(heightFeet) || 5;
+    const inches = parseFloat(heightInches) || 8;
+    const h = Math.round((feet * 30.48) + (inches * 2.54)) || 170;
+    const a = parseInt(ageYears, 10) || 30;
+    const isFemale = (gender || '').toLowerCase() === 'female';
+    const bmr = (10 * w) + (6.25 * h) - (5 * a) + (isFemale ? -161 : 5);
+    const activityMap = { 'not-active': 1.2, 'lightly-active': 1.375, 'active': 1.55, 'very-active': 1.725 };
+    const mult = activityMap[activityLevel] || 1.55;
+    let tdee = bmr * mult;
+    const goal = (goals[0] || '').toLowerCase();
+    if (goal.includes('lose')) tdee -= 500;
+    else if (goal.includes('gain weight')) tdee += 500;
+    else if (goal.includes('muscle')) tdee += 300;
+    return Math.max(1200, Math.min(4000, Math.round(tdee)));
   };
 
   const dailyCalories = calculateDailyCalories();
 
   return (
-    React.createElement("section", { className: "flex items-center justify-center min-h-screen py-10 bg-gradient-to-br from-blue-50 to-white" },
+    React.createElement("section", { className: "flex items-center justify-center min-h-screen px-4 py-12 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white" },
       React.createElement("div", { className: "w-full max-w-2xl p-8 bg-white rounded-xl shadow-lg border border-gray-100 animate-fade-in-up" },
         React.createElement("div", { className: "mb-6" },
           React.createElement("div", { className: "flex items-center justify-between text-sm text-gray-500 mb-3" },
@@ -226,24 +230,7 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
           ),
           step === 2 && React.createElement("div", { className: "space-y-6" },
             React.createElement("div", null,
-              React.createElement("h3", { className: "text-lg font-semibold text-gray-900 mb-2" }, "Barriers to progress"),
-              React.createElement("p", { className: "text-sm text-gray-500 mb-3" }, "Select all that apply."),
-              React.createElement("div", { className: "grid grid-cols-1 gap-3" },
-                barrierOptions.map((barrier) => (
-                  React.createElement("button", {
-                    key: barrier,
-                    type: "button",
-                    onClick: () => toggleSelection(barrier, barriers, setBarriers),
-                    className: `w-full text-left px-4 py-3 rounded-xl border transition ${barriers.includes(barrier) ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'}`
-                  },
-                    React.createElement("span", { className: "font-semibold" }, barrier),
-                    barriers.includes(barrier) && React.createElement("span", { className: "float-right text-blue-600 font-semibold" }, "OK")
-                  )
-                ))
-              )
-            ),
-            React.createElement("div", null,
-              React.createElement("h3", { className: "text-lg font-semibold text-gray-900 mb-2" }, "Baseline activity level"),
+              React.createElement("h3", { className: "text-lg font-semibold text-gray-900 mb-2" }, "Activity level"),
               React.createElement("div", { className: "grid grid-cols-1 gap-3" },
                 activityOptions.map((option) => (
                   React.createElement("button", {
@@ -260,6 +247,33 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
             )
           ),
           step === 3 && React.createElement("div", { className: "space-y-5" },
+            React.createElement("div", null,
+              React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-2" }, "Gender"),
+              React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+                React.createElement("button", {
+                  type: "button",
+                  onClick: () => setGender('male'),
+                  className: `w-full px-4 py-3 rounded-xl border transition text-left ${gender === 'male' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'}`
+                }, "Male"),
+                React.createElement("button", {
+                  type: "button",
+                  onClick: () => setGender('female'),
+                  className: `w-full px-4 py-3 rounded-xl border transition text-left ${gender === 'female' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300'}`
+                }, "Female")
+              )
+            ),
+            React.createElement("div", null,
+              React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-2" }, "Age (years)"),
+              React.createElement("input", {
+                type: "number",
+                min: 13,
+                max: 120,
+                value: ageYears,
+                onChange: (e) => setAgeYears(e.target.value),
+                placeholder: "e.g. 30",
+                className: "block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              })
+            ),
             React.createElement("div", null,
               React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-2" }, "How tall are you?"),
               React.createElement("div", { className: "grid grid-cols-2 gap-3" },
@@ -302,6 +316,36 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
             )
           ),
           step === 4 && React.createElement("div", { className: "space-y-4" },
+            React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-4" },
+              React.createElement("div", null,
+                React.createElement("label", { htmlFor: "firstName", className: "block text-sm font-medium text-gray-700 mb-1" }, "First Name"),
+                React.createElement("input", {
+                  type: "text",
+                  id: "firstName",
+                  name: "firstName",
+                  value: firstName,
+                  onChange: (e) => setFirstName(e.target.value),
+                  required: true,
+                  className: "mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm",
+                  "aria-label": "First name",
+                  placeholder: "First name"
+                })
+              ),
+              React.createElement("div", null,
+                React.createElement("label", { htmlFor: "lastName", className: "block text-sm font-medium text-gray-700 mb-1" }, "Last Name"),
+                React.createElement("input", {
+                  type: "text",
+                  id: "lastName",
+                  name: "lastName",
+                  value: lastName,
+                  onChange: (e) => setLastName(e.target.value),
+                  required: true,
+                  className: "mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm",
+                  "aria-label": "Last name",
+                  placeholder: "Last name"
+                })
+              )
+            ),
             React.createElement("div", null,
               React.createElement("label", { htmlFor: "email", className: "block text-sm font-medium text-gray-700 mb-1" }, "Email"),
               React.createElement("input", {
@@ -312,7 +356,8 @@ const SignUpPage = ({ onNavigate, onSignUpSuccess }) => {
                 onChange: (e) => setEmail(e.target.value),
                 required: true,
                 className: "mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm",
-                "aria-label": "Email address"
+                "aria-label": "Email address",
+                placeholder: "Email"
               })
             ),
             React.createElement("div", null,

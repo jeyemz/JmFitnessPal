@@ -27,7 +27,7 @@ const LoginPage = ({ onNavigate, onLoginSuccess }) => {
   };
 
   return (
-    React.createElement("section", { className: "flex items-center justify-center min-h-screen py-10 bg-gradient-to-br from-blue-50 to-white" },
+    React.createElement("section", { className: "flex items-center justify-center min-h-screen px-4 py-12 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white" },
       React.createElement("div", { className: "w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-gray-100 animate-fade-in-up" },
         React.createElement("h2", { className: "text-3xl font-bold text-gray-900 text-center mb-2" }, "Log In"),
         React.createElement("p", { className: "text-center text-sm text-gray-500 mb-6" }, "Welcome back! Sign in to continue."),
@@ -48,6 +48,8 @@ const LoginPage = ({ onNavigate, onLoginSuccess }) => {
               onChange: (e) => setEmail(e.target.value),
               required: true,
               disabled: isLoading,
+              placeholder: "e.g. you@example.com",
+              autoComplete: "email",
               className: "mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:bg-gray-100",
               "aria-label": "Email address"
             })
@@ -62,6 +64,8 @@ const LoginPage = ({ onNavigate, onLoginSuccess }) => {
               onChange: (e) => setPassword(e.target.value),
               required: true,
               disabled: isLoading,
+              placeholder: "At least 8 characters",
+              autoComplete: "current-password",
               className: "mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:bg-gray-100",
               "aria-label": "Password"
             }),

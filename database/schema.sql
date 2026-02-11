@@ -27,6 +27,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    nickname VARCHAR(100) NULL,
     role_id INT NOT NULL DEFAULT 2,
     is_active BOOLEAN DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT FALSE,
@@ -267,6 +268,20 @@ CREATE TABLE ai_scan_logs (
     FOREIGN KEY (matched_food_id) REFERENCES foods(food_id) ON DELETE SET NULL,
     INDEX idx_user_scans (user_id, created_at),
     INDEX idx_scan_status (status)
+);
+
+-- =============================================================================
+-- USER ACTIVITY LOG (login, logout, signup for admin Recent Activity)
+-- =============================================================================
+CREATE TABLE user_activity_log (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    action_type ENUM('login', 'logout', 'signup') NOT NULL,
+    user_email VARCHAR(255),
+    user_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_activity_created (created_at DESC)
 );
 
 -- =============================================================================

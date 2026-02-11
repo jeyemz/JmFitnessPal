@@ -35,6 +35,11 @@ services:
       MYSQL_DATABASE: jmfitnesspal
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
       FLASK_DEBUG: "true"
+      USDA_FDC_API_KEY: ${USDA_FDC_API_KEY:-}
+      USDA_FDC_BASE_URL: ${USDA_FDC_BASE_URL:-https://api.nal.usda.gov/fdc/v1}
+      EDAMAM_APP_ID: ${EDAMAM_APP_ID:-}
+      EDAMAM_APP_KEY: ${EDAMAM_APP_KEY:-}
+      LOGMEAL_API_TOKEN: ${LOGMEAL_API_TOKEN:-}
     ports:
       - "5000:5000"
     networks:

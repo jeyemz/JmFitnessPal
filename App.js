@@ -8,9 +8,9 @@ import SignUpPage from './components/SignUpPage.js';
 import DashboardPage from './pages/DashboardPage.js';
 import AdminDashboardPage from './pages/AdminDashboardPage.js';
 import AdminUserManagementPage from './pages/AdminUserManagementPage.js';
-import AdminFoodDatabasePage from './pages/AdminFoodDatabasePage.js'; // New import for AdminFoodDatabasePage
-import AdminAnalyticsPage from './pages/AdminAnalyticsPage.js'; // New import for AdminAnalyticsPage
-import AdminAIMonitoringPage from './pages/AdminAIMonitoringPage.js'; // New import for AdminAIMonitoringPage
+import AdminAnalyticsPage from './pages/AdminAnalyticsPage.js';
+import AdminAIMonitoringPage from './pages/AdminAIMonitoringPage.js';
+import AdminFoodDatabasePage from './pages/AdminFoodDatabasePage.jsx';
 import { FEATURES_DATA } from './constants.js';
 import { authAPI } from './services/api.js';
 
@@ -25,13 +25,23 @@ const App = () => {
     if (storedUser && authAPI.isAuthenticated()) {
       setUser(storedUser);
       setIsLoggedIn(true);
-      // Navigate based on role
       if (storedUser.role === 'admin') {
         setCurrentPage('admin-dashboard');
       } else {
         setCurrentPage('dashboard');
       }
     }
+  }, []);
+
+  // When token expires (401), API layer clears storage and fires this; redirect to login
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setIsLoggedIn(false);
+      setCurrentPage('login');
+    };
+    window.addEventListener('auth:sessionExpired', handleSessionExpired);
+    return () => window.removeEventListener('auth:sessionExpired', handleSessionExpired);
   }, []);
 
   const handleNavigate = (page) => {
@@ -64,8 +74,8 @@ const App = () => {
     setCurrentPage('dashboard'); // Redirect to user dashboard after successful sign-up
   };
 
-  const onLogout = () => {
-    authAPI.logout();
+  const onLogout = async () => {
+    await authAPI.logout();
     setUser(null);
     setIsLoggedIn(false);
     setCurrentPage('home');
@@ -84,15 +94,14 @@ const App = () => {
             return React.createElement(AdminDashboardPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
           case 'admin-users':
             return React.createElement(AdminUserManagementPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
-          case 'admin-tenants': // Assuming a tenants page exists or will exist
-            return React.createElement(AdminUserManagementPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user }); // Placeholder for now, can create a dedicated tenant page later
-          case 'admin-ai-monitoring':
-            return React.createElement(AdminAIMonitoringPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
+          case 'admin-tenants': // Placeholder: reuse user management for now
+            return React.createElement(AdminUserManagementPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
           case 'admin-analytics':
             return React.createElement(AdminAnalyticsPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
-          case 'admin-food-db': // New case for Admin Food Database Management
+          case 'admin-ai-monitoring':
+            return React.createElement(AdminAIMonitoringPage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
+          case 'admin-food-db':
             return React.createElement(AdminFoodDatabasePage, { onNavigate: handleNavigate, currentPage: currentPage, onLogout: onLogout, user: user });
-          // Add other admin pages here as needed
           default:
             return React.createElement(AdminDashboardPage, { onNavigate: handleNavigate, currentPage: 'admin-dashboard', onLogout: onLogout, user: user });
         }

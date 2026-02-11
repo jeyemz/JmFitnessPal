@@ -34,18 +34,18 @@ const CalorieProgressCard = ({ intake, goal }) => {
         ),
         React.createElement("div", { className: "absolute inset-0 flex flex-col items-center justify-center" },
           React.createElement("span", { className: "text-4xl font-bold text-gray-900" }, kcalLeft.toLocaleString()),
-          React.createElement("span", { className: "text-sm text-gray-500 uppercase" }, "KCAL LEFT")
+          React.createElement("span", { className: "text-sm text-gray-500 uppercase" }, "cal left")
         )
       ),
 
       React.createElement("div", { className: "flex justify-between items-center text-gray-600" },
         React.createElement("div", null,
           React.createElement("p", { className: "text-sm uppercase mb-1" }, "Intake"),
-          React.createElement("p", { className: "text-lg font-bold text-gray-800" }, intake.toLocaleString(), " kcal")
+          React.createElement("p", { className: "text-lg font-bold text-gray-800" }, intake.toLocaleString(), " cal")
         ),
         React.createElement("div", null,
           React.createElement("p", { className: "text-sm uppercase mb-1" }, "Goal"),
-          React.createElement("p", { className: "text-lg font-bold text-gray-800" }, goal.toLocaleString(), " kcal")
+          React.createElement("p", { className: "text-lg font-bold text-gray-800" }, goal.toLocaleString(), " cal")
         )
       )
     )

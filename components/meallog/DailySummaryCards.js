@@ -14,7 +14,7 @@ const DailySummaryCards = ({ summary }) => {
       React.createElement(SummaryCard, {
         title: "Total",
         value: safeSummary.totalCalories,
-        unit: "kcal",
+        unit: "cal",
         valueClassName: "text-3xl",
         // Fix: Changed 'progressPercentage' to 'percentage' to match SummaryCardProps
         percentage: Math.round((safeSummary.totalCalories / 2000) * 100), // Assuming a daily goal of 2000 for progress

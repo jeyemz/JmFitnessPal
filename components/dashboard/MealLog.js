@@ -1,7 +1,6 @@
 
 import React from 'react';
 import MealItem from './MealItem.js';
-import Button from '../Button.js';
 
 const MealLog = ({ onNavigate, meals = [] }) => {
   return (
@@ -24,12 +23,12 @@ const MealLog = ({ onNavigate, meals = [] }) => {
           React.createElement("p", { className: "text-sm text-gray-500" }, "No meals logged yet.")
         )
       ),
-      React.createElement(Button, { 
-        variant: "primary", 
-        className: "w-full", 
-        onClick: () => onNavigate && onNavigate('meal-log')
+      React.createElement("button", {
+        type: "button",
+        onClick: () => onNavigate && onNavigate('meal-log'),
+        className: "w-full py-3 px-4 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2 transition-colors"
       },
-        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 2.5, stroke: "currentColor", className: "w-5 h-5 mr-2" },
+        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 2.5, stroke: "currentColor", className: "w-5 h-5" },
           React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 4.5v15m7.5-7.5h-15" })
         ),
         "Log Meal"

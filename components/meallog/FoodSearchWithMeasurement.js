@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { foodAPI, nutritionAPI, foodLogAPI } from '../../services/api.js';
 
-const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
+const FoodSearchWithMeasurement = ({ onFoodAdded, onAIScanClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -11,9 +11,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
   const [calculatedNutrition, setCalculatedNutrition] = useState(null);
   const [selectedMealType, setSelectedMealType] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [searchSource, setSearchSource] = useState('api'); // 'api' or 'local'
 
   const mealTypes = [
     { id: 1, name: 'Breakfast' },
@@ -31,7 +29,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
     { value: 'tsp', label: 'teaspoons' }
   ];
 
-  // Debounced search
+  // Debounced search: local database first, then USDA
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery.length >= 2) {
@@ -42,7 +40,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, searchSource]);
+  }, [searchQuery]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -51,20 +49,24 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
     setMessage({ type: '', text: '' });
     
     try {
-      let response;
+      // 1. Search local database first
+      const localResponse = await foodAPI.search(searchQuery);
+      const localFoods = (localResponse.foods || []).map((f) => ({ ...f, source: 'local', sourceLabel: 'Local' }));
       
-      if (searchSource === 'api') {
-        // Search using API Ninjas
-        response = await nutritionAPI.search(searchQuery);
-      } else {
-        // Search local database
-        response = await foodAPI.search(searchQuery);
+      // 2. Then search USDA FoodData Central
+      let usdaFoods = [];
+      try {
+        const usdaResponse = await nutritionAPI.search(searchQuery);
+        usdaFoods = (usdaResponse.foods || []).map((f) => ({ ...f, sourceLabel: 'USDA' }));
+      } catch (usdaErr) {
+        console.warn('USDA search failed:', usdaErr);
       }
       
-      setSearchResults(response.foods || []);
+      // Combine: local first, then USDA
+      setSearchResults([...localFoods, ...usdaFoods]);
       
-      if (response.foods?.length === 0 && response.message) {
-        setMessage({ type: 'info', text: response.message });
+      if (localFoods.length === 0 && usdaFoods.length === 0) {
+        setMessage({ type: 'info', text: 'No foods found. Try a different search term.' });
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -79,20 +81,21 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
   };
 
   const handleSelectFood = (food) => {
+    console.log('[handleSelectFood] Selected food:', food);
     setSelectedFood(food);
     setCustomAmount(food.servingSize?.toString() || '100');
     setSelectedUnit('g');
     
-    // Set initial calculated nutrition
-    const calories = food.calories || food.caloriesPerServing || 0;
+    // Set initial calculated nutrition (use ?? for proper null/undefined handling)
+    const calories = food.calories ?? food.caloriesPerServing ?? 0;
     setCalculatedNutrition({
       calories: calories,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fat: food.fat || 0,
-      fiber: food.fiber || 0,
-      sugar: food.sugar || 0,
-      sodium: food.sodium || 0
+      protein: food.protein ?? 0,
+      carbs: food.carbs ?? 0,
+      fat: food.fat ?? 0,
+      fiber: food.fiber ?? 0,
+      sugar: food.sugar ?? 0,
+      sodium: food.sodium ?? 0
     });
   };
 
@@ -105,7 +108,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
     }
 
     try {
-      // Use API Ninjas calculation endpoint
+      // Use USDA FDC calculation endpoint
       const response = await nutritionAPI.calculate(selectedFood, parseFloat(amount), unit);
       
       if (response.calculation) {
@@ -120,9 +123,10 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
         });
       }
     } catch (error) {
-      // Calculate locally as fallback
-      const baseServing = selectedFood.servingSize || 100;
-      const calories = selectedFood.calories || selectedFood.caloriesPerServing || 0;
+      console.log('[handleAmountChange] API call failed, using local calculation:', error);
+      // Calculate locally as fallback (use ?? for proper null/undefined handling)
+      const baseServing = selectedFood.servingSize ?? 100;
+      const calories = selectedFood.calories ?? selectedFood.caloriesPerServing ?? 0;
       
       // Simple conversion for grams (approximate for other units)
       const unitMultipliers = {
@@ -131,14 +135,17 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
       const amountInGrams = parseFloat(amount) * (unitMultipliers[unit] || 1);
       const multiplier = amountInGrams / baseServing;
       
+      console.log('[handleAmountChange] Local calc - baseServing:', baseServing, 'multiplier:', multiplier);
+      console.log('[handleAmountChange] Food data - protein:', selectedFood.protein, 'carbs:', selectedFood.carbs, 'fat:', selectedFood.fat);
+      
       setCalculatedNutrition({
         calories: Math.round(calories * multiplier * 10) / 10,
-        protein: Math.round((selectedFood.protein || 0) * multiplier * 10) / 10,
-        carbs: Math.round((selectedFood.carbs || 0) * multiplier * 10) / 10,
-        fat: Math.round((selectedFood.fat || 0) * multiplier * 10) / 10,
-        fiber: Math.round((selectedFood.fiber || 0) * multiplier * 10) / 10,
-        sugar: Math.round((selectedFood.sugar || 0) * multiplier * 10) / 10,
-        sodium: Math.round((selectedFood.sodium || 0) * multiplier * 10) / 10
+        protein: Math.round((selectedFood.protein ?? 0) * multiplier * 10) / 10,
+        carbs: Math.round((selectedFood.carbs ?? 0) * multiplier * 10) / 10,
+        fat: Math.round((selectedFood.fat ?? 0) * multiplier * 10) / 10,
+        fiber: Math.round((selectedFood.fiber ?? 0) * multiplier * 10) / 10,
+        sugar: Math.round((selectedFood.sugar ?? 0) * multiplier * 10) / 10,
+        sodium: Math.round((selectedFood.sodium ?? 0) * multiplier * 10) / 10
       });
     }
   };
@@ -147,20 +154,6 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
     setSelectedUnit(unit);
     if (customAmount) {
       handleAmountChange(customAmount, unit);
-    }
-  };
-
-  const handleSaveToDatabase = async () => {
-    if (!selectedFood) return;
-    
-    setIsSaving(true);
-    try {
-      await nutritionAPI.saveToDatabase(selectedFood);
-      setMessage({ type: 'success', text: `${selectedFood.name} saved to your food database!` });
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save food. It may already exist.' });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -182,14 +175,14 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
       
       console.log('baseServing:', baseServing, 'servings:', servings);
       
-      // Check if this is an API Ninjas food (id starts with "api_" or source is api_ninjas)
-      const isApiFood = selectedFood.source === 'api_ninjas' || 
-                        (selectedFood.id && String(selectedFood.id).startsWith('api_'));
+      // Check if this is a USDA FDC food (id starts with "usda_" or source is usda_fdc)
+      const isApiFood = selectedFood.source === 'usda_fdc' || 
+                        (selectedFood.id && String(selectedFood.id).startsWith('usda_'));
       
       console.log('isApiFood:', isApiFood);
       
       if (isApiFood) {
-        // For API foods, always send nutrition data (use calculatedNutrition or selectedFood values)
+        // For API/USDA foods, always send nutrition data and source 'api' so they save to local DB
         const nutrition = calculatedNutrition || {
           calories: selectedFood.calories || selectedFood.caloriesPerServing || 0,
           protein: selectedFood.protein || 0,
@@ -200,6 +193,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
         await foodLogAPI.logFoodWithNutrition({
           mealTypeId: selectedMealType,
           servings: servings,
+          source: 'api',
           nutritionData: {
             name: selectedFood.name,
             calories: nutrition.calories,
@@ -275,27 +269,17 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
   return (
     React.createElement("div", { className: "bg-white rounded-xl shadow-sm p-6 border border-gray-100" },
       React.createElement("div", { className: "flex justify-between items-center mb-4" },
-        React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "Search Food Database"),
-        /* Search Source Toggle */
-        React.createElement("div", { className: "flex items-center space-x-1 bg-gray-100 rounded-lg p-1" },
-          React.createElement("button", {
-            type: "button",
-            onClick: () => setSearchSource('api'),
-            className: `px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              searchSource === 'api' 
-                ? 'bg-white text-blue-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-800'
-            }`
-          }, "API Ninjas"),
-          React.createElement("button", {
-            type: "button",
-            onClick: () => setSearchSource('local'),
-            className: `px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              searchSource === 'local' 
-                ? 'bg-white text-blue-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-800'
-            }`
-          }, "Local DB")
+        React.createElement("h2", { className: "text-xl font-bold text-gray-900" }, "Find a food"),
+        onAIScanClick && React.createElement("button", {
+          type: "button",
+          onClick: onAIScanClick,
+          className: "flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+        },
+          React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5" },
+            React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" }),
+            React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" })
+          ),
+          "Scan food"
         )
       ),
       
@@ -305,11 +289,9 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
           type: "text",
           value: searchQuery,
           onChange: (e) => setSearchQuery(e.target.value),
-          placeholder: searchSource === 'api' 
-            ? "Search any food (e.g., '100g chicken breast', '1 apple')..." 
-            : "Search local database...",
+          placeholder: "Search for a food (e.g. chicken, apple)...",
           className: "w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm",
-          "aria-label": "Search food database"
+          "aria-label": "Search for a food"
         }),
         React.createElement("svg", { 
           xmlns: "http://www.w3.org/2000/svg", 
@@ -332,14 +314,11 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
         )
       ),
 
-      /* Search Source Info */
-      searchSource === 'api' && React.createElement("p", { 
+      /* Search hint */
+      React.createElement("p", { 
         className: "text-xs text-gray-500 mb-3 flex items-center" 
       },
-        React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-4 h-4 mr-1" },
-          React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" })
-        ),
-        "Powered by API Ninjas - Search millions of foods worldwide"
+        "We search our database and nutrition info."
       ),
 
       /* Message */
@@ -364,9 +343,9 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
                 React.createElement("div", null,
                   React.createElement("div", { className: "flex items-center space-x-2" },
                     React.createElement("p", { className: "font-medium text-gray-900" }, food.name),
-                    food.source === 'api_ninjas' && React.createElement("span", { 
-                      className: "px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded" 
-                    }, "API")
+                    (food.sourceLabel || food.source === 'usda_fdc') && React.createElement("span", { 
+                      className: `px-1.5 py-0.5 text-xs rounded ${food.source === 'local' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}` 
+                    }, food.source === 'local' ? 'Our list' : 'Nutrition info')
                   ),
                   food.brand && React.createElement("p", { className: "text-xs text-gray-500" }, food.brand),
                   React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, 
@@ -375,7 +354,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
                 ),
                 React.createElement("div", { className: "text-right" },
                   React.createElement("p", { className: "font-semibold text-blue-600" }, 
-                    `${food.calories || food.caloriesPerServing || 0} kcal`
+                    `${food.calories || food.caloriesPerServing || 0} cal`
                   ),
                   React.createElement("p", { className: "text-xs text-gray-500" }, 
                     `P: ${food.protein || 0}g | C: ${food.carbs || 0}g | F: ${food.fat || 0}g`
@@ -402,9 +381,9 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
             React.createElement("div", null,
               React.createElement("div", { className: "flex items-center space-x-2" },
                 React.createElement("p", { className: "font-bold text-gray-900 text-lg" }, selectedFood.name),
-                selectedFood.source === 'api_ninjas' && React.createElement("span", { 
-                  className: "px-2 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full" 
-                }, "API Ninjas")
+                (selectedFood.sourceLabel || selectedFood.source === 'usda_fdc') && React.createElement("span", { 
+                  className: `px-2 py-0.5 text-xs rounded-full ${selectedFood.source === 'local' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}` 
+                }, selectedFood.source === 'local' ? 'Our list' : 'Nutrition info')
               ),
               selectedFood.brand && React.createElement("p", { className: "text-sm text-gray-600" }, selectedFood.brand)
             ),
@@ -421,7 +400,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
           /* Custom Amount Input with Unit Selector */
           React.createElement("div", { className: "mb-4" },
             React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-2" }, 
-              "Enter Custom Measurement"
+              "How much?"
             ),
             React.createElement("div", { className: "flex items-center space-x-2" },
               React.createElement("input", {
@@ -444,26 +423,14 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
               )
             ),
             React.createElement("p", { className: "text-xs text-gray-500 mt-1" },
-              `Base serving: ${selectedFood.servingSize || 100}${selectedFood.servingUnit || 'g'} = ${selectedFood.calories || selectedFood.caloriesPerServing || 0} kcal`
-            )
-          ),
-
-          /* Save to Database Button (for API foods) */
-          selectedFood.source === 'api_ninjas' && (
-            React.createElement("button", {
-              type: "button",
-              onClick: handleSaveToDatabase,
-              disabled: isSaving,
-              className: "mb-4 w-full py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-            },
-              isSaving ? "Saving..." : "Save to My Food Database"
+              `Base serving: ${selectedFood.servingSize || 100}${selectedFood.servingUnit || 'g'} = ${selectedFood.calories || selectedFood.caloriesPerServing || 0} cal`
             )
           ),
 
           /* Calculated Nutrition Display */
           calculatedNutrition && (
             React.createElement("div", { className: "bg-white rounded-lg p-4 mb-4" },
-              React.createElement("p", { className: "text-sm font-medium text-gray-700 mb-3" }, "Calculated Nutrition:"),
+              React.createElement("p", { className: "text-sm font-medium text-gray-700 mb-3" }, "Nutrition for this amount:"),
               React.createElement("div", { className: "grid grid-cols-4 gap-3 text-center" },
                 React.createElement("div", { className: "bg-blue-100 rounded-lg p-2" },
                   React.createElement("p", { className: "text-lg font-bold text-blue-700" }, 
@@ -496,7 +463,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
           /* Meal Type Selection */
           React.createElement("div", { className: "mb-4" },
             React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-2" }, 
-              "Add to Meal"
+              "Which meal?"
             ),
             React.createElement("div", { className: "grid grid-cols-4 gap-2" },
               mealTypes.map((meal) => (
@@ -529,7 +496,7 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
                 React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-5 h-5 mr-2" },
                   React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 4.5v15m7.5-7.5h-15" })
                 ),
-                "Add to Food Log"
+                "Add to log"
               )
             )
           )
@@ -542,8 +509,8 @@ const FoodSearchWithMeasurement = ({ onFoodAdded }) => {
           React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 1.5, stroke: "currentColor", className: "w-12 h-12 text-gray-300 mx-auto mb-3" },
             React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" })
           ),
-          React.createElement("p", { className: "text-gray-500 text-sm" }, "Search for foods to log your meals"),
-          React.createElement("p", { className: "text-gray-400 text-xs mt-1" }, "Enter at least 2 characters to search")
+          React.createElement("p", { className: "text-gray-500 text-sm" }, "Find and add foods to your day"),
+          React.createElement("p", { className: "text-gray-400 text-xs mt-1" }, "Type at least 2 characters")
         )
       )
     )

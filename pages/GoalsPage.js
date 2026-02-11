@@ -2,18 +2,54 @@ import React, { useState, useEffect, useCallback } from 'react';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar.js';
 import Button from '../components/Button.js';
 import { MACRO_PRESETS } from '../constants.js';
+import { userAPI } from '../services/api.js';
 
-const GoalsPage = ({ onNavigate }) => {
-  const DEFAULT_CALORIE_GOAL = 2150;
+const GoalsPage = ({ onNavigate, user, onLogout }) => {
+  const DEFAULT_CALORIE_GOAL = 2000;
   const DEFAULT_TARGET_WEIGHT = 75.0;
   const DEFAULT_MACRO_PRESET = 'Balanced';
 
-  const [dailyCalorieGoal, setDailyCalorieGoal] = useState(DEFAULT_CALORIE_GOAL);
+  const [dailyCalorieGoal, setDailyCalorieGoal] = useState(user?.goals?.dailyCalorieGoal ?? DEFAULT_CALORIE_GOAL);
   const [targetWeight, setTargetWeight] = useState(DEFAULT_TARGET_WEIGHT);
   const [selectedMacroPreset, setSelectedMacroPreset] = useState(DEFAULT_MACRO_PRESET);
-  const [proteinGrams, setProteinGrams] = useState(0);
-  const [carbsGrams, setCarbsGrams] = useState(0);
-  const [fatGrams, setFatGrams] = useState(0);
+  const [proteinGrams, setProteinGrams] = useState(user?.goals?.proteinGoal ?? 150);
+  const [carbsGrams, setCarbsGrams] = useState(user?.goals?.carbsGoal ?? 250);
+  const [fatGrams, setFatGrams] = useState(user?.goals?.fatGoal ?? 65);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadGoals = useCallback(async () => {
+    try {
+      const res = await userAPI.getGoals();
+      const g = res?.goals;
+      if (g) {
+        setDailyCalorieGoal(g.dailyCalorieGoal ?? DEFAULT_CALORIE_GOAL);
+        setProteinGrams(g.proteinGoal ?? 150);
+        setCarbsGrams(g.carbsGoal ?? 250);
+        setFatGrams(g.fatGoal ?? 65);
+      }
+    } catch (_) { /* use defaults */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadGoals();
+  }, [loadGoals]);
+
+  const handleRecalculate = async () => {
+    try {
+      const res = await userAPI.calculateGoals();
+      const g = res?.goals;
+      if (g) {
+        setDailyCalorieGoal(g.dailyCalorieGoal);
+        setProteinGrams(g.proteinGoal);
+        setCarbsGrams(g.carbsGoal);
+        setFatGrams(g.fatGoal);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const calculateMacroGrams = useCallback(() => {
     const preset = MACRO_PRESETS[selectedMacroPreset];
@@ -44,31 +80,32 @@ const GoalsPage = ({ onNavigate }) => {
     setSelectedMacroPreset(presetName);
   };
 
-  const handleUpdateGoals = () => {
-    // In a real application, this would send data to a backend API
-    console.log('Updating all goals:', {
-      dailyCalorieGoal,
-      targetWeight,
-      selectedMacroPreset,
-      proteinGrams,
-      carbsGrams,
-      fatGrams,
-    });
-    alert('Goals updated successfully! (Demo)');
+  const handleUpdateGoals = async () => {
+    setSaving(true);
+    try {
+      await userAPI.updateGoals({
+        goalType: 'maintain_weight',
+        dailyCalorieGoal,
+        proteinGoal: proteinGrams,
+        carbsGoal: carbsGrams,
+        fatGoal: fatGrams
+      });
+      alert('Goals updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update goals.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleResetToDefaults = () => {
-    if (window.confirm('Are you sure you want to reset all goals to default settings?')) {
-      setDailyCalorieGoal(DEFAULT_CALORIE_GOAL);
-      setTargetWeight(DEFAULT_TARGET_WEIGHT);
-      setSelectedMacroPreset(DEFAULT_MACRO_PRESET);
-      alert('Goals reset to defaults! (Demo)');
-    }
+  const handleResetToDefaults = async () => {
+    if (!window.confirm('Recalculate goals from your profile (age, weight, height, activity)?')) return;
+    await handleRecalculate();
   };
 
   return (
     React.createElement("div", { className: "flex-1 p-6 overflow-auto" },
-      React.createElement(DashboardTopBar, { title: "My Goals", subtitle: "Keep it simple. Adjust your daily targets here." }),
+      React.createElement(DashboardTopBar, { title: "My Goals", subtitle: "Keep it simple. Adjust your daily targets here.", showSearchBar: false, user: user, onLogout: onLogout }),
 
       React.createElement("div", { className: "space-y-6 max-w-4xl mx-auto" },
         /* Daily Calorie Goal Section */
@@ -86,8 +123,8 @@ const GoalsPage = ({ onNavigate }) => {
               React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24", strokeWidth: 2, stroke: "currentColor", className: "w-5 h-5" }, React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19.5 12h-15" }))
             ),
             React.createElement("div", { className: "text-center" },
-              React.createElement("p", { className: "text-3xl font-bold text-gray-900" }, dailyCalorieGoal.toLocaleString()),
-              React.createElement("p", { className: "text-sm text-blue-600" }, "kcal / day")
+              loading ? React.createElement("div", { className: "animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto" }) : React.createElement("p", { className: "text-3xl font-bold text-gray-900" }, dailyCalorieGoal.toLocaleString()),
+              !loading && React.createElement("p", { className: "text-sm text-blue-600" }, "cal / day")
             ),
             React.createElement("button", {
               onClick: () => handleCalorieChange(50),
@@ -170,12 +207,12 @@ const GoalsPage = ({ onNavigate }) => {
       React.createElement("div", { className: "flex justify-between items-center max-w-4xl mx-auto mt-8 py-4 border-t border-gray-200" },
         React.createElement("button", {
           onClick: handleResetToDefaults,
-          className: "text-gray-600 hover:text-red-600 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-200"
+          className: "text-gray-600 hover:text-blue-600 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-200"
         },
-          "Reset to Defaults"
+          "Recalculate from my profile"
         ),
-        React.createElement(Button, { variant: "primary", onClick: handleUpdateGoals, className: "py-2 px-6 text-md" },
-          "Update All Goals"
+        React.createElement(Button, { variant: "primary", onClick: handleUpdateGoals, disabled: saving, className: "py-2 px-6 text-md" },
+          saving ? "Saving..." : "Update All Goals"
         )
       )
     )

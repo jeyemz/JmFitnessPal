@@ -1,14 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardTopBar from '../components/dashboard/DashboardTopBar.js';
 import Button from '../components/Button.js';
 import { foodLogAPI } from '../services/api.js';
 
-const HistoryPage = ({ onNavigate, user }) => {
+const HistoryPage = ({ onNavigate, user, onLogout }) => {
   const [historyEntries, setHistoryEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [daysToLoad, setDaysToLoad] = useState(30);
+  const [expandedEntries, setExpandedEntries] = useState(new Set());
 
   // Get user goals for percentage calculations
   const userGoals = user?.goals || {};
@@ -40,6 +40,18 @@ const HistoryPage = ({ onNavigate, user }) => {
     setDaysToLoad(prev => prev + 30);
   };
 
+  const toggleExpanded = (entryId) => {
+    setExpandedEntries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entryId)) {
+        newSet.delete(entryId);
+      } else {
+        newSet.add(entryId);
+      }
+      return newSet;
+    });
+  };
+
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     const today = new Date();
@@ -65,7 +77,9 @@ const HistoryPage = ({ onNavigate, user }) => {
       React.createElement(DashboardTopBar, { 
         title: "Your History", 
         subtitle: "Review your daily nutritional journey",
-        showSearchBar: false 
+        showSearchBar: false,
+        user: user,
+        onLogout: onLogout
       }),
 
       /* Loading State */
@@ -83,116 +97,114 @@ const HistoryPage = ({ onNavigate, user }) => {
       ),
 
       /* History Entries */
-      React.createElement("div", { className: "space-y-6" },
+      React.createElement("div", { className: "space-y-4" },
         historyEntries.length > 0 ? (
           historyEntries.map((entry) => (
             React.createElement("div", { 
               key: entry.id, 
-              className: "bg-white rounded-xl shadow-sm p-6 border border-gray-100"
+              className: "bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
             },
-              /* Date Header */
-              React.createElement("div", { className: "flex justify-between items-center mb-4" },
-                React.createElement("h3", { className: "text-lg font-bold text-gray-900" },
-                  formatDate(entry.date)
-                ),
-                React.createElement("span", { className: "text-sm text-gray-500" },
-                  entry.date
-                )
-              ),
-
-              /* Calorie Progress Bar */
-              React.createElement("div", { className: "mb-4" },
-                React.createElement("div", { className: "flex justify-between text-sm mb-1" },
-                  React.createElement("span", { className: "font-medium text-gray-700" }, "Calories"),
-                  React.createElement("span", { className: "text-gray-600" },
-                    `${Math.round(entry.totalCalories)} / ${entry.calorieGoal} kcal`
-                  )
-                ),
-                React.createElement("div", { className: "w-full bg-gray-200 rounded-full h-3" },
-                  React.createElement("div", {
-                    className: `h-3 rounded-full transition-all ${
-                      entry.caloriePercentage >= 100 ? 'bg-red-500' : 
-                      entry.caloriePercentage >= 80 ? 'bg-yellow-500' : 'bg-green-500'
-                    }`,
-                    style: { width: `${Math.min(100, entry.caloriePercentage)}%` }
-                  })
-                )
-              ),
-
-              /* Macro Summary */
-              React.createElement("div", { className: "grid grid-cols-3 gap-4 mb-4" },
-                /* Protein */
-                React.createElement("div", { className: "bg-orange-50 rounded-lg p-3 text-center" },
-                  React.createElement("p", { className: "text-lg font-bold text-orange-600" },
-                    `${Math.round(entry.protein)}g`
+              /* Entry Header - Always visible */
+              React.createElement("div", { className: "p-6" },
+                /* Date and Calories */
+                React.createElement("div", { className: "flex items-baseline justify-between gap-3 mb-4" },
+                  React.createElement("div", { className: "min-w-0" },
+                    React.createElement("h3", { className: "text-lg font-bold text-gray-900 truncate" },
+                      formatDate(entry.date)
+                    ),
+                    React.createElement("span", { className: "text-sm text-gray-500" },
+                      entry.date
+                    )
                   ),
-                  React.createElement("p", { className: "text-xs text-gray-600" }, "Protein"),
-                  React.createElement("div", { className: "w-full bg-orange-100 rounded-full h-1.5 mt-1" },
-                    React.createElement("div", {
-                      className: "h-1.5 rounded-full bg-orange-500",
-                      style: { width: `${Math.min(100, (entry.protein / proteinGoal) * 100)}%` }
-                    })
+                  React.createElement("div", { className: "text-right flex-shrink-0" },
+                    React.createElement("p", { className: "text-2xl font-bold text-blue-600 whitespace-nowrap" },
+                      `${Math.round(entry.totalCalories)} cal`
+                    ),
+                    React.createElement("p", { className: "text-xs text-gray-500" }, 
+                      `${entry.caloriePercentage}% of goal`
+                    )
                   )
                 ),
-                /* Carbs */
-                React.createElement("div", { className: "bg-green-50 rounded-lg p-3 text-center" },
-                  React.createElement("p", { className: "text-lg font-bold text-green-600" },
-                    `${Math.round(entry.carbs)}g`
-                  ),
-                  React.createElement("p", { className: "text-xs text-gray-600" }, "Carbs"),
-                  React.createElement("div", { className: "w-full bg-green-100 rounded-full h-1.5 mt-1" },
-                    React.createElement("div", {
-                      className: "h-1.5 rounded-full bg-green-500",
-                      style: { width: `${Math.min(100, (entry.carbs / carbsGoal) * 100)}%` }
-                    })
-                  )
-                ),
-                /* Fat */
-                React.createElement("div", { className: "bg-purple-50 rounded-lg p-3 text-center" },
-                  React.createElement("p", { className: "text-lg font-bold text-purple-600" },
-                    `${Math.round(entry.fat)}g`
-                  ),
-                  React.createElement("p", { className: "text-xs text-gray-600" }, "Fat"),
-                  React.createElement("div", { className: "w-full bg-purple-100 rounded-full h-1.5 mt-1" },
-                    React.createElement("div", {
-                      className: "h-1.5 rounded-full bg-purple-500",
-                      style: { width: `${Math.min(100, (entry.fat / fatGoal) * 100)}%` }
-                    })
-                  )
-                )
-              ),
 
-              /* Meal Breakdown */
-              entry.meals && Object.keys(entry.meals).length > 0 && (
-                React.createElement("div", { className: "border-t border-gray-100 pt-4" },
-                  React.createElement("p", { className: "text-sm font-medium text-gray-700 mb-3" }, "Meals"),
-                  React.createElement("div", { className: "space-y-2" },
-                    Object.entries(entry.meals).map(([mealName, mealData]) => (
-                      React.createElement("div", { 
-                        key: mealName, 
-                        className: "flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"
-                      },
-                        React.createElement("div", null,
-                          React.createElement("span", { className: "font-medium text-gray-800" }, mealName),
-                          React.createElement("span", { className: "text-sm text-gray-500 ml-2" },
-                            `(${mealData.foods.length} items)`
-                          )
-                        ),
-                        React.createElement("span", { className: "text-blue-600 font-semibold" },
-                          `${Math.round(mealData.totalCalories)} kcal`
-                        )
-                      )
-                    ))
+                /* Macro Summary - Compact */
+                React.createElement("div", { className: "grid grid-cols-3 gap-3" },
+                  React.createElement("div", { className: "bg-orange-50 rounded-lg p-3 text-center" },
+                    React.createElement("p", { className: "text-lg font-bold text-orange-600" },
+                      `${Math.round(entry.protein)}g`
+                    ),
+                    React.createElement("p", { className: "text-xs text-gray-500" }, "Protein")
+                  ),
+                  React.createElement("div", { className: "bg-green-50 rounded-lg p-3 text-center" },
+                    React.createElement("p", { className: "text-lg font-bold text-green-600" },
+                      `${Math.round(entry.carbs)}g`
+                    ),
+                    React.createElement("p", { className: "text-xs text-gray-500" }, "Carbs")
+                  ),
+                  React.createElement("div", { className: "bg-purple-50 rounded-lg p-3 text-center" },
+                    React.createElement("p", { className: "text-lg font-bold text-purple-600" },
+                      `${Math.round(entry.fat)}g`
+                    ),
+                    React.createElement("p", { className: "text-xs text-gray-500" }, "Fat")
                   )
                 )
               ),
 
               /* View Details Button */
               React.createElement("button", {
-                onClick: () => onNavigate('mealLog'),
-                className: "mt-4 w-full py-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                onClick: () => toggleExpanded(entry.id),
+                className: "w-full py-3 text-sm text-blue-600 hover:bg-blue-50 font-medium border-t border-gray-100 flex items-center justify-center transition-colors"
               },
-                "View Full Details"
+                expandedEntries.has(entry.id) ? "Hide Details" : "View Full Details",
+                React.createElement("svg", { 
+                  xmlns: "http://www.w3.org/2000/svg", 
+                  fill: "none", 
+                  viewBox: "0 0 24 24", 
+                  strokeWidth: 2, 
+                  stroke: "currentColor", 
+                  className: `w-4 h-4 ml-1 transition-transform ${expandedEntries.has(entry.id) ? 'rotate-180' : ''}`
+                },
+                  React.createElement("path", { 
+                    strokeLinecap: "round", 
+                    strokeLinejoin: "round", 
+                    d: "M19.5 8.25l-7.5 7.5-7.5-7.5" 
+                  })
+                )
+              ),
+
+              /* Expanded Details - Foods for each meal */
+              expandedEntries.has(entry.id) && entry.meals && Object.keys(entry.meals).length > 0 && (
+                React.createElement("div", { className: "border-t border-gray-100 bg-gray-50 p-6" },
+                  Object.entries(entry.meals).map(([mealName, mealData]) => (
+                    React.createElement("div", { key: mealName, className: "mb-4 last:mb-0" },
+                      React.createElement("div", { className: "flex justify-between items-center mb-2" },
+                        React.createElement("h4", { className: "font-semibold text-gray-900" }, mealName),
+                        React.createElement("span", { className: "text-sm text-blue-600 font-medium" },
+                          `${Math.round(mealData.totalCalories)} cal`
+                        )
+                      ),
+                      React.createElement("div", { className: "space-y-2" },
+                        mealData.foods && mealData.foods.map((food, idx) => (
+                          React.createElement("div", { 
+                            key: idx, 
+                            className: "flex justify-between items-center py-2 px-3 bg-white rounded-lg text-sm"
+                          },
+                            React.createElement("span", { className: "text-gray-700" }, food.name),
+                            React.createElement("span", { className: "text-gray-500" }, 
+                              `${Math.round(food.calories)} cal`
+                            )
+                          )
+                        ))
+                      )
+                    )
+                  ))
+                )
+              ),
+
+              /* No meals message */
+              expandedEntries.has(entry.id) && (!entry.meals || Object.keys(entry.meals).length === 0) && (
+                React.createElement("div", { className: "border-t border-gray-100 bg-gray-50 p-6 text-center text-gray-500" },
+                  "No meal details available for this day"
+                )
               )
             )
           ))
@@ -217,7 +229,7 @@ const HistoryPage = ({ onNavigate, user }) => {
               "Start logging your meals to see your history here."
             ),
             React.createElement("button", {
-              onClick: () => onNavigate('mealLog'),
+              onClick: () => onNavigate('meal-log'),
               className: "mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             },
               "Log Your First Meal"
